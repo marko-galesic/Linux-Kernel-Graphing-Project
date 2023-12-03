@@ -1,0 +1,145 @@
+HACKING notes for FCGP					-*- text -*- 
+
+
+STRUCTURE ============================================================
+
+It looks like this program is trying to set a record for the maximum
+number of programming languages in the smallest lines of code.  It's a
+shame to use quite so many.
+
+SPEED ================================================================
+
+We could try making the postscript faster to render, perhaps by
+stripping out unnecessary rotate and gsave operations.  This could be
+done either by changing the generation code, or
+
+It might be nice to avoid the posterization step and make the rest of
+the program directly produce well-formed PS.  It's probably not worth
+the effort at this stage.
+
+Since processing the Postscript takes a long time, it might be better
+to produce larger tiles and them cut them.  I think this was my
+original suggestion to Rusty.  The originally generated tiles should
+I think be as large as possible without causing swapping.
+
+Assume one word per pixel; if we can dedicate 100MB to the image that
+will be about 5000x5000.  Showing the whole map, the output file is
+quite modest; only about 922kB.  
+
+We ought to then load it into memory just once and spit out all the
+tiles.
+
+Interestingly, using gs-aladdin, even with very large output images
+the RSS is reasonable.  Perhaps it uses banding or some kind of
+compressed format internally?  
+
+The Gimp on wistful handles images up to about 8000x8000 with
+reasonable aplomb when "conservative memory usage" is set, although it
+does a bit of IO.  Without that, it can still handle large images but
+it uses a lot of VM -- apparently it just doesn't bound memory usage.
+Perhaps we can use its scripting system to cut the images.  However
+there seems to be no straightforward way to save the selection --
+perhaps it needs to be cut into a new image and saved; this might be
+expensive.
+
+16000x16000 seems a little large for it to comfortably deal with on
+this machine, though it's quite well-behaved as it tries.  I suppose
+that would be about 244megs at one byte/pixel.
+
+Rusty's split-image.c seems to work pretty well.  It reads everything
+into memory, so we might need do several top-level renders to keep
+everything small enough.
+
+To get a good view and sufficient details we seem to need to zoom to a
+level of about 128.
+
+At a zoom of 1.0 we need about 600 x 650 to cover the whole thing.
+Therefore at a zoom of 128, we will need about 76800 x 83200, which is
+about 6GB in memory.  Not very realistic; therefore must split up
+during preliminary render.
+
+Although the numbers are not round, it seems best to make all tiles a
+multiple of this size; they can eventually split into four for
+fine-grained display on the screen.
+
+We'll start at zoom 1.0, dim 600 x 650 and allow the top-level tiles
+to increase in size up to zoom 8.0, dim 4800 x 5200.  Beyond that
+point we need to do multiple toplevel tiles at increasing zoom levels.
+
+zoom	#	width	height	sub	total
+1	1	600	650	4	4
+2	1	1200	1300	16	16
+4	1	2400	2600	64	64
+8	1	4800	5200	256	256
+16	4	4800	5200	256	1024
+32	16	4800	5200	256	4096
+64	64	4800	5200	256	16384
+
+Beyond this point it becomes rather ridiculously large, so it's just
+as well that the text is more or less legible and we can stop.
+
+I modified dupes.py to make it create hardlinks between identical
+files; we can use this to get a bit of compression on blank areas of
+the output.
+
+The eventual tiles ought to be about 200x200 pixels.
+
+==== Coordinates 
+
+We need a system of global coordinates for the map, independent of the
+current zoom level.  The plan is then to first work out what position
+we want to display, then to use that along with the current zoom level
+to work out which tile to choose.
+
+When the user makes a navigation selection, we need to do just the
+opposite: use the current zoom level, the offset for the tile on which
+they clicked, and the coordinates of the click to work out where to
+move.
+
+Note that the offset of a tile is not necessarily the position we were
+aiming for when we got there, because there is some rounding in
+choosing a tile.  So to calculate it when serving a page, we need to
+go from the index of the current tile.
+
+The best thing is probably to work in Postscript points	for lack of
+anything better.  This means we might need to use floating-point
+coordinates in the future.  We consider points to be tied to the page
+at its bottom left corner, though when finding the best fit we look
+at the center of the page.
+
+This means that the PHP scripts need to know about the tiling of
+images: both the spacing, and the absolute boundary.  Also, the
+spacing has to vary in a systematic way depending on the zoom factor.
+
+Tile coordinates are measured from the bottom right because that's how
+Postscript does it.  Web browsers are the opposite.
+
+We should combine the images for blank tiles.  Ideally the PHP page
+would turn them all into <img src=blank.png> so that the browser can
+use its cached version.
+
+
+==== HTTP issues
+
+The ISMAP imagemap system is a little bit of a mess, since it doesn't
+mix nicely with other variables.  It seems to always just append
+"?123,133" to the URL, regardless of what is already there.
+
+http://ksi.cpsc.ucalgary.ca/archives/HTML-WG/html-wg-95q2.messages/0150.html
+
+There is some suggestion that all query parameters may be stripped
+from the URL, so we should not count on them remaining.
+
+0,0 is in the top left.
+
+So I think we have to use the QUERY_PATH stuff instead.
+
+TODO =================================================================
+
+ - finish speedups
+
+ - test under MSIE, Netscape, Mozilla, perhaps others
+
+ - mapquest interface to find functions or files
+
+

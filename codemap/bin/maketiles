@@ -1,0 +1,71 @@
+#! /usr/bin/python
+
+# Generate top-level tiles; before subdivision.
+
+import sys, os
+from os import system
+
+base_w = 600
+base_h = 600
+sub_w = 200
+sub_h = 200
+
+max_multiple = 8
+
+if len(sys.argv) != 3:
+    print "usage: maketoplevel PSFILE OUTDIR"
+    sys.exit(1)
+
+psfile, outdir = sys.argv[1:]
+
+def runcmd(s):
+    print s
+    if system(s):
+        sys.exit(1)
+
+
+def file_exists(f):
+    try:
+        os.stat(f)
+        return 1
+    except OSError:
+        return 0
+
+
+for zoom in [1, 2, 4, 8, 16, 32, 64]:
+    if zoom > max_multiple:
+        coarse_split = zoom / max_multiple
+        this_w = base_w * max_multiple
+        this_h = base_h * max_multiple
+    else:
+        coarse_split = 1
+        this_w = base_w * zoom
+        this_h = base_h * zoom
+        
+    print "%7d %7d %7d %7d" % (zoom, coarse_split**2, this_w, this_h)
+
+    for xs in range(coarse_split):
+        for ys in range(coarse_split):
+            x = xs * base_w * zoom / coarse_split
+            y = ys * base_h * zoom / coarse_split
+            print "\t%07d %07d" % (x, y)
+
+            this_dir = "%s/zoom%03d/x%06d_y%06d" % (outdir, zoom, x, y)
+            system("mkdir -p %s" % this_dir)
+
+            this_file = "top.png" 
+            if file_exists("%s/%s" % (this_dir, this_file)):
+                print "already exists; skipped"
+		continue
+
+            runcmd("rendertile %s %d %d %d %d %d %s/%s" % (psfile, zoom, x, y, this_w, this_h,
+                                                           this_dir, this_file))
+
+            # now, split up into smaller tiles
+            subsplit_w = this_w / sub_w
+            subsplit_h = this_h / sub_h
+
+            runcmd("cd %s && split-image %s %d %d" % (this_dir, this_file, subsplit_w, subsplit_h))
+            
+
+            

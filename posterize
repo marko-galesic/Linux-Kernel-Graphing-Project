@@ -1,0 +1,276 @@
+#! /bin/sh
+# Take image.ps and produce a poster from it.
+# Much of this stolen from "poster", which didn't work with my dodgy
+# postscript.
+# This script is GPL. (c) 2001 Paul `Rusty' Russell.
+
+printusage()
+{
+    [ -n "$1" ] && echo "$1" >&2
+    echo 'Usage: posterize [letter|a4|a3|a2|a1|a0|11x17|archE] num-pages' >&2
+    echo ' eg. To produce a 6x6 poster of A4 pages: posterize a4 6' >&2
+    echo ' It is possible to set only the width' >&2
+    echo ' eg. For a 3ft plotter, making two halves: posterize 3ft 2' >&2
+    exit 1
+}
+
+#comment out to allow a third option (for splitting x and y)
+[ $# = 2 ] || printusage
+
+# Thanks to the gs man page for papersizes (units in 1/72 inch)...
+case "$1" in
+    letter) PAPER_WIDTH=612; PAPER_HEIGHT=792;;
+    a4) PAPER_WIDTH=595; PAPER_HEIGHT=842;;
+    a3) PAPER_WIDTH=842; PAPER_HEIGHT=1190;;
+    a2) PAPER_WIDTH=1190; PAPER_HEIGHT=1684;;
+    a1) PAPER_WIDTH=1684; PAPER_HEIGHT=2380;;
+    a0) PAPER_WIDTH=2384; PAPER_HEIGHT=3370;;
+    11x17) PAPER_WIDTH=792; PAPER_HEIGHT=1224;;
+    poster) PAPER_WIDTH=3024; PAPER_HEIGHT=4000; DISTORT=1;;
+    archE) PAPER_WIDTH=2592; PAPER_HEIGHT=3456;;
+    3ft) PAPER_WIDTH=2692; PAPER_HEIGHT=0;; # 3ft, 4ft, and 11in produce
+    4ft) PAPER_WIDTH=3456; PAPER_HEIGHT=0;; # long strips.  This could be useful
+    11in) PAPER_WIDTH=612; PAPER_HEIGHT=0;; # on plotters that print from a roll
+                                            # of paper, but it didn't work with
+					    # the plotter I tried :-(
+    # Add your paper here...
+    *) printusage "Unknown papersize $1.  Change, or edit script.";;
+esac
+
+#if a third argument is allowed, set it to the the width
+if [ ! -z $3 ]; then
+    YPAGES=$3
+else
+    YPAGES=$2
+fi
+XPAGES=$2
+
+if [ ! -f image.ps ]; then
+    echo 'You need to run "make" first.' >&2
+    exit 1
+fi
+
+# Check disk usage.  Each compressed ps takes ~10MB.
+# df returns something like:
+#   Filesystem           1k-blocks      Used Available Use% Mounted on
+#   /dev/hdb1             29561392  27655164    404556  99% /images
+#SPACE=`df -k . | tail +2 | awk '{print $4}'`
+#SPACE=`expr $SPACE / 1000`
+#if [ `expr $SPACE` -lt `expr $2 \* $2 \* 10` ]; then
+#    echo "Need `expr $2 \* $2 \* 10` MB free for ${2}x$2 poster; seem to have $SPACE MB." >&2
+#    echo "Aborting" >&2
+#    exit 1
+#fi
+
+# Image bounding box is at bottom, eg: % bound -344.30 -344.30 344.30 344.30
+LEFT_BOUND=`tail -n 1 image.ps | awk '{ print $3 }'`
+LOWER_BOUND=`tail -n 1 image.ps | awk '{ print $4 }'`
+RIGHT_BOUND=`tail -n 1 image.ps | awk '{ print $5 }'`
+UPPER_BOUND=`tail -n 1 image.ps | awk '{ print $6 }'`
+
+WIDTH=`echo scale=5\; $RIGHT_BOUND - $LEFT_BOUND | bc`
+HEIGHT=`echo scale=5\; $UPPER_BOUND - $LOWER_BOUND | bc`
+
+# Use 5% margins unless we're 1x1, in which case, 2% margins (no cut marks)
+if [ $YPAGES -eq 1 ]; then
+    YMARGIN=0.02
+else
+    YMARGIN=0.05
+fi
+if [ $XPAGES -eq 1 ]; then
+    XMARGIN=0.02
+else
+    XMARGIN=0.05
+fi
+
+TOTAL_WIDTH=`echo scale=5\; $XPAGES \* $PAPER_WIDTH \* \(1.0000 - $XMARGIN \* 2 \) | bc`
+TOTAL_HEIGHT=`echo scale=5\; $YPAGES \* $PAPER_HEIGHT \* \(1.0000 - $YMARGIN \* 2 \) | bc`
+BOTTOM_MARGIN=`echo $PAPER_HEIGHT \* $YMARGIN | bc`
+LEFT_MARGIN=`echo $PAPER_WIDTH \* $XMARGIN | bc`
+
+HEIGHT_SCALE=`echo scale=5\; $TOTAL_HEIGHT / $HEIGHT | bc`
+WIDTH_SCALE=`echo scale=5\; $TOTAL_WIDTH / $WIDTH | bc`
+if [ $PAPER_HEIGHT -eq 0 ]; then
+    BOTTOM_MARGIN=$LEFT_MARGIN
+    TOTAL_HEIGHT=`echo scale=5\; \( $HEIGHT / $WIDTH \* $TOTAL_WIDTH \) | bc`
+    PAPER_HEIGHT=`echo scale=0\; \($TOTAL_HEIGHT + $BOTTOM_MARGIN \* 2 \) / 1 | bc`
+    YPAGES=1
+    HEIGHT_SCALE=`echo scale=5\; $TOTAL_HEIGHT / $HEIGHT | bc`
+else
+if [ $PAPER_WIDTH -eq 0 ]; then
+    LEFT_MARGIN=$BOTTOM_MARGIN
+    TOTAL_WIDTH=`echo scale=5\; \( $WIDTH / $HEIGHT \* $TOTAL_HEIGHT \) | bc`
+    PAPER_WIDTH=`echo scale=0\; \($TOTAL_WIDTH + $LEFT_MARGIN \* 2 \) / 1 | bc`
+    XPAGES=1
+    WIDTH_SCALE=`echo scale=5\; $TOTAL_WIDTH / $WIDTH | bc`
+fi
+fi
+# We choose the minimum of the two scales, unless DISTORT is set.
+if [ -z "$DISTORT" ]; then
+    if [ `echo $HEIGHT_SCALE \> $WIDTH_SCALE | bc` = 1 ]; then
+	HEIGHT_SCALE=$WIDTH_SCALE
+    else
+	WIDTH_SCALE=$HEIGHT_SCALE
+    fi
+fi
+
+x=1
+while [ $x -le $XPAGES ]; do
+    y=1
+    while [ $y -le $YPAGES ]; do
+	echo Generating poster.$x.$y.ps...
+	(echo "%!PS-Adobe-1.0"
+	 echo "%%DocumentFonts: Helvetica Helvetica-Bold"
+	 echo "%%Title: Linux Kernel Poster ($x x $y of $XPAGES x $YPAGES)"
+	 echo "%%Creator: Rusty's scripts and postersize (GPL)"
+	 echo "%%CreationDate: `date`"
+	 echo "%%Pages: 1"
+	 echo "%%BoundingBox: 0 0 `expr $PAPER_WIDTH - 1` `expr $PAPER_HEIGHT - 1`"
+	 echo "%%EndComments"
+         echo "%!"
+         echo "/PRorig_showpage_x178313 /showpage load def /showpage{"
+         echo "                                              errordict /handleerror {} put"
+         echo "                                             }def"
+         echo "/initgraphics{}def/setpagedevice{pop}def"
+         echo "statusdict begin /a4tray{}def /lettertray{}def end"
+         echo "/a4{}def/a3{}def/a0{}def/letter{}def/legal{}def"
+         echo "/a4small{}def /lettersmall{}def /a4tray{}def /lettertray{}def"
+         echo "/setscreen{pop pop pop}def"
+         echo "/ColorManagement {pop} def"
+         echo ""
+         echo "0 0 translate 0 rotate 1 1 mul 1 1 mul scale"
+         echo ""
+	 # Draw the clipping stuff (unless 1x1).
+	 if [ $2 -ne 1 ]; then
+		 cat <<EOF
+/leftmargin $LEFT_MARGIN def
+/botmargin $BOTTOM_MARGIN def
+/pagewidth `echo $PAPER_WIDTH - 2 \* $LEFT_MARGIN | bc` def
+/pageheight `echo $PAPER_HEIGHT - 2 \* $BOTTOM_MARGIN | bc` def
+/imagexl 0 def
+/imageyb 0 def
+/posterxl 0 def
+/posteryb 0 def
+/do_turn false def
+/strg 10 string def
+/clipmargin 6 def
+/labelsize 9 def
+/cutmark	% - cutmark -
+{		% draw cutline
+	0.23 setlinewidth 0 setgray
+	clipmargin
+	dup 0 moveto
+	dup neg leftmargin add 0 rlineto stroke
+	% draw sheet alignment mark
+	dup dup neg moveto
+	dup 0 rlineto
+	dup dup lineto
+	0 rlineto
+	closepath fill
+} bind def
+
+% Tile contents
+$y
+$x
+
+/colcount exch def
+/rowcount exch def
+
+% print the cutmarks
+gsave
+leftmargin botmargin translate
+EOF
+#print only the needed cut marks
+echo "pagewidth pageheight translate"
+[ $y -lt $YPAGES ] && echo cutmark
+echo "90 rotate"
+[ $x -lt $XPAGES ] && echo cutmark
+echo "0 pagewidth translate"
+[ $x -gt 1 ] && echo cutmark
+echo "90 rotate" 
+[ $y -lt $YPAGES ] && echo cutmark
+echo "0 pageheight translate"
+[ $y -gt 1 ] && echo cutmark 
+echo "90 rotate"
+[ $x -gt 1 ] && echo cutmark
+echo "0 pagewidth translate"
+[ $x -lt $XPAGES ] && echo cutmark
+echo "90 rotate"
+[ $y -gt 1 ] && echo cutmark
+cat <<EOF
+% print the page label - commented out for now
+%0 setgray
+%leftmargin clipmargin 3 mul add clipmargin labelsize add neg botmargin add moveto
+%/Helvetica findfont labelsize scalefont setfont
+%(Grid \( ) show
+%rowcount strg cvs show
+%( , ) show
+%colcount strg cvs show
+%( \)) show
+grestore
+
+gsave
+leftmargin botmargin translate
+do_turn {exch} if
+% clip page contents
+clipmargin neg dup moveto
+pagewidth clipmargin 2 mul add 0 rlineto
+0 pageheight clipmargin 2 mul add rlineto
+pagewidth clipmargin 2 mul add neg 0 rlineto
+closepath clip
+% set page contents transformation
+do_turn
+{	pagewidth 0 translate
+	90 rotate
+} if
+pagewidth colcount 1 sub mul neg
+pageheight rowcount 1 sub mul neg
+do_turn {exch} if
+translate
+posterxl posteryb translate
+$WIDTH_SCALE $HEIGHT_SCALE scale
+imagexl neg imageyb neg translate
+0 setgray 0 setlinecap 1 setlinewidth
+0 setlinejoin 10 setmiterlimit [] 0 setdash newpath
+EOF
+	else
+		echo "$LEFT_MARGIN $BOTTOM_MARGIN translate"
+		echo "$WIDTH_SCALE $HEIGHT_SCALE scale"
+	fi
+	cat <<EOF
+/A {gsave newpath 0 360 arc stroke grestore} bind def
+/M {moveto} bind def
+/L {lineto} bind def
+/D {[] 0 setdash} bind def
+/D5 {[5] 0 setdash} bind def
+/C0 {0 0 0 setrgbcolor} bind def
+/C1 {.8 .4 .4 setrgbcolor} bind def
+/C2 {.5 1 .5 setrgbcolor} bind def
+/C3 {0 .7 0 setrgbcolor} bind def
+/C4 {1 0 0 setrgbcolor} bind def
+/C5 {0 0 1 setrgbcolor} bind def
+/R {grestore} bind def
+/S {0 0 M stroke} bind def
+/T {gsave translate} bind def
+/U {C0 newpath 4 copy 4 2 roll 8 7 roll M L L L closepath stroke
+    C1 findfont exch scalefont setfont M show} bind def
+EOF
+	echo "`echo $LEFT_BOUND \* -1 | bc` `echo $LOWER_BOUND \* -1 | bc` translate"
+	echo "gsave"
+	echo "%%EndProlog"
+	echo "%%Page 0 1"
+	# Paste in actual image.
+	dd bs=1000 if=image.ps 2>/dev/null
+	echo "%%Trailer"
+	echo "grestore"
+	echo "showpage"
+	echo "PRorig_showpage_x178313"
+	echo "/showpage /PRorig_showpage_x178313 load def"
+        ) > poster.$x.$y.ps
+	y=`expr $y + 1`
+    done
+    x=`expr $x + 1`
+done
+
+echo Poster completed!
+exit 0

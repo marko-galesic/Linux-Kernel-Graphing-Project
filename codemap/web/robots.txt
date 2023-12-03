@@ -1,0 +1,7 @@
+# robots.txt for kernelmapper.osdn.com
+
+# Please don't traverse the whole thing; it's pretty large
+User-agent: *
+Disallow: /map.php
+Disallow: /tiles
+Disallow: /ps

@@ -1,0 +1,60 @@
+2.6.0a
+-----
+
+* Oops: Forgot to update this changelog.
+
+2.6.0
+-----
+
+* Divisions in ring 4 (useful for 2.6 so sound, security, and cypto directories
+  can have their own sections, or possibly even divide up drivers)
+* Resizing the title based on the size of the diagram so title doesn't fall off
+  the page when graphing smaller projects. (like linux 1.2.0) I think I will
+  add this feature to the key and authors sometime in the future.
+* Corrected a problem where if a division in a ring is small and it containes
+  a file that was a bit large the radious will be increased leaving a bunch of
+  blank rows untill the function fits inside the small angle. It now forces it
+  to not add any blank rows. This seems to work ok, but maybe a better solution
+  will be found sometime.
+* Included the fixes that were posted to the patches section on the sf site.
+* Make output sizes more flexable, create a long ps image based only on the 
+  width. This is useful for plotters so the image can be split in only one 
+  direction. ie `posterize 3ft 2` will produce two 3' wide images, splitting 
+  the poster into two pieces.
+  BIG NOTE: I have not yet found a plotter that this works on (not that I've 
+  tried more than one). Please let me know if this actually works.
+* Increased the font size to make a 2.6 kernel nearly readable (need a high 
+  dpi) when printed in a 6ft wide format.
+
+
+2.5.2
+-----
+
+* Changed rmclutter and function2ps to handle a stream of several files
+  to avoid much unneccessary process spawning overhead.
+* Integrated function2ps into stage 1 (less duplicate processing, elimination
+  of the temorary function-source files)
+* Replaced most PS commands with one-letter defines to conserve space
+  (Patch by Oskar Schirmer)
+* Compatibility fixes for proprietary Unices (Patch by Rick Lyons)
+* Summary: Processing time reduced from 28 minutes to 11 minutes
+  (Athlon 1.2 GHz, 512 MB RAM), required scratch space (without kernel
+  source) reduced from ~400 MB to ~180 MB, PS file size reduced from
+  ~32 MB to ~22 MB
+
+
+2.5.1
+-----
+
+* Um, don't know anymore :*)
+
+
+2.5.0
+-----
+
+* Rewrote most of the shell scripts in Perl (creinig)
+* Optimized the shell/Perl stuff (processing time reduced by about 87%) (creinig)
+* Optimized the PS output a bit (file size 60MB instead of 180) (creinig)
+* Removed some of the dependencies on the kernel coding style (creinig)
+* Made the code a bit more understandable / extensible (creinig)
+* Added a0 paper format to posterize (creinig)

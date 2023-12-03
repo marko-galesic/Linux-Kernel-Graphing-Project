@@ -1,0 +1,12 @@
+#! /usr/bin/perl -w
+# Tallies standard input, prints answer
+
+$Total = 0;
+
+while (<>)
+{
+        chomp;
+	$Total += $_;
+}
+
+print "$Total\n";

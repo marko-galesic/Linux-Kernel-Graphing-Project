@@ -1,0 +1,48 @@
+#! /bin/sh -e
+
+# Copyright (C) 2001, 2002 by Martin Pool <mbp@samba.org>
+
+# Part of the Linux Graphing Project
+
+# Produce one tile for a Postscript rendering.  Takes four parameters:
+# the .ps filename, zoom, x, and y positions.  (x,y) ties the bottom
+# left corner of the produced tile, and is in PS points.  $zoom is
+# relative to standard script.
+
+# Note that X and Y are in *zoomed* coordinates: if you double the
+# zoom, you must also double X and Y to stay in the same place.  
+
+if [ $# != 7 ]
+then
+    echo "usage: rendertile PSFILE ZOOM X Y W H OUTFILE"
+    exit 1
+fi
+
+psfile=$1
+zoom=$2
+x=$3
+y=$4
+w=$5
+h=$6
+outfile=$7
+
+cat >&2 <<EOF
+psfile=$1 outfile=$outfile
+zoom=$2
+x=$3 y=$4
+w=$w h=$h
+EOF
+
+size="-dDEVICEHEIGHTPOINTS=$h -dDEVICEWIDTHPOINTS=$w"
+
+( cat <<EOF
+$x neg $y neg translate
+$zoom dup scale
+EOF
+cat $psfile ) |
+gs-aladdin -r72 $size -dQUIET -sDEVICE=png256 -dBATCH -dNOPAUSE \
+    -sOutputFile="$outfile" - 
+
+# pngfile=${psfile%.ps}_${zoom}_${x}_${y}.png
+
+# look at putdeviceprops GraphicsAlphaBits for antialiasing?

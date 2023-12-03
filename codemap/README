@@ -1,0 +1,17 @@
+README for the revised Free Code Graphing Project  -*- text -*- 
+
+To render the tiles for php kernel map execute the following commands:
+
+$ mkdir tiles
+$ cd bin
+$ gcc split-image.c -o split-image -lpng
+$ PATH=$PWD:$PATH
+$ maketiles fullposter.ps ../tiles
+
+fullposter.ps should be a postscript file containing your kernel poster,
+for example, one that you created by running posterize letter 1 previously.
+
+Copy the tiles and web directory to a webserver with php,
+you will have to modify the php source to fit your site.  Most importantly
+edit the reference in map.php to the tiles directory to point to your new tiles
+directory.
