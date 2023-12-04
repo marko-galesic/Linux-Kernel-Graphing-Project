@@ -1,8 +1,7 @@
 I saw something similar as an undergrad CS student, and I haven't been able to find something similar.
-I'm guessing this is what the poster I saw was created from.
+I'm guessing this is what the poster I saw was created from. This is a port from https://fcgp.sourceforge.net/lgp/index.html. SourceForge is the OG GitHub, but GitHub is the more active place now. I want to preserve at least the code.
 
 ![](261_big01.jpg)
-![](261_big02.jpg)
 
 This is a set of scripts to create a poster of the Linux kernel
 (v1.2 to 2.6 at the moment).  For a 2.6 kernel this will take about
